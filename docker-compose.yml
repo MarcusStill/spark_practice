@@ -1,0 +1,131 @@
+name: spark_01
+
+networks:
+  lab:
+    driver: bridge
+
+volumes:
+  pg_data:
+
+services:
+
+  spark-master:
+    image: apache/spark:3.5.1
+    container_name: spark-master
+    command: ["/opt/spark/sbin/start-master.sh"]
+    environment:
+      - SPARK_NO_DAEMONIZE=1
+    ports:
+      - "7077:7077"      # Spark RPC
+      - "18080:8080"     # Master UI → http://localhost:18080
+    volumes:
+      - ./datasets:/data
+    restart: unless-stopped
+    networks: [lab]
+
+  spark-worker-1:
+    build:
+      context: .
+      dockerfile: worker.Dockerfile
+    image: local/spark-worker:3.5.1
+    container_name: spark-worker-1
+    depends_on: [spark-master]
+    # ВАЖНО: передаём мастера одной строкой, чтобы аргумент точно дошёл
+    command: >
+      bash -lc "/opt/spark/sbin/start-worker.sh
+      --cores 2 --memory 1g --webui-port 8081 spark://spark-master:7077"
+    environment:
+      - SPARK_NO_DAEMONIZE=1
+      - PYSPARK_PYTHON=/usr/bin/python3
+    ports:
+      - "8081:8081"      # Worker-1 UI
+    volumes:
+      - ./datasets:/data
+    restart: unless-stopped
+    networks: [lab]
+
+  spark-worker-2:
+    build:
+      context: .
+      dockerfile: worker.Dockerfile
+    image: local/spark-worker:3.5.1
+    container_name: spark-worker-2
+    depends_on: [spark-master]
+    command: >
+      bash -lc "/opt/spark/sbin/start-worker.sh
+      --cores 2 --memory 1g --webui-port 8082 spark://spark-master:7077"
+    environment:
+      - SPARK_NO_DAEMONIZE=1
+      - PYSPARK_PYTHON=/usr/bin/python3
+    ports:
+      - "8082:8082"      # Worker-2 UI
+    volumes:
+      - ./datasets:/data
+    restart: unless-stopped
+    networks: [lab]
+
+  jupyter:
+    build:
+      context: .
+      dockerfile: jupyter.Dockerfile
+    image: local/jupyter-pyspark:3.5
+    container_name: jupyter
+    depends_on: [spark-master, spark-worker-1, spark-worker-2]
+    user: "0:0"
+    
+    # ВАЖНО: exec-форма + одна строка с опциями Jupyter
+    command:
+      - bash
+      - -lc
+      - |
+        mkdir -p /home/jovyan/work /home/jovyan/work/.ipynb_checkpoints /data &&
+        chmod -R 777 /home/jovyan /data &&
+        jupyter lab --ServerApp.ip=0.0.0.0 --ServerApp.port=8888 --ServerApp.token= \
+                    --IdentityProvider.token= --ServerApp.allow_root=True \
+                    --ServerApp.open_browser=False --ServerApp.allow_remote_access=True \
+                    --ServerApp.disable_check_xsrf=True
+    
+    environment:
+      - TZ=Europe/Moscow
+      - PYSPARK_PYTHON=python3
+      - PYSPARK_DRIVER_PYTHON=python3
+      - PGHOST=postgres
+      - PGPORT=5433
+      - PGUSER=app
+      - PGPASSWORD=app
+      - PGDATABASE=dwh
+    
+    volumes:
+      - ./notebooks:/home/jovyan/work
+      - ./datasets:/data
+      - ./checks:/home/jovyan/work/checks
+    
+    ports:
+      - "8890:8888"
+    restart: unless-stopped
+    networks: [lab]
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: dwh
+      TZ: Europe/Moscow
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./db/postgres/init:/docker-entrypoint-initdb.d:ro  # .sql для авто-создания схем/таблиц
+      - ./data:/data:ro
+      - ./db:/db:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U app -d dwh" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks: [ lab ]
+
+
