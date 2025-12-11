@@ -8,6 +8,7 @@
 - перенести данные в целевую таблицу `stg.orders` по паттерну **`delete+insert` по `ingest_date`**.
 
 ## Контекст
+
 Команда аналитики смотрит на **заказы**: сколько штук, в каком статусе, как меняется динамика.
 
 Каждый день мы кладём новую выгрузку в RAW. При этом:
@@ -94,31 +95,23 @@ commit;
 drop table if exists stg._orders_load;
 ```
 
-### 3. Выполняем скрипт **по блокам**:
+### 3. Загружаем данные
 
-   - `drop/create` буфера;
-   - `COPY ... FROM ...`;
-   - `begin; delete+insert; commit;`;
-   - `drop table stg._orders_load`.
+Выполняем скрипт по блокам:
+- `drop/create`;
+- `COPY ... FROM ...`;
+- `begin; delete+insert; commit;`;
+- `drop table stg._orders_load`.
 
-### 4. Проверяем результат
+### 4. Проверяем результат загрузки
 
 Количество строк по ingest_date
+
 ```sql
--- 1) Количество строк по ingest_date
 select ingest_date, count(*) 
 from stg.orders
 group by ingest_date
 order by ingest_date;
-
--- 2) Последние заказы по дате покупки
-select order_id,
-       order_status,
-       order_purchase_ts,
-       ingest_date
-from stg.orders
-order by order_purchase_ts desc
-limit 5;
 ```
 
 Результат:
@@ -128,7 +121,8 @@ ingest_date|count|
  2025-12-03|99441|
 ```
 
-Количество строк по ingest_date
+Последние заказы по дате покупки
+
 ```sql
 select order_id,
        order_status,
