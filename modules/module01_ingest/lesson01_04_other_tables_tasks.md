@@ -323,25 +323,7 @@ ingest_date|count|
 
 ### 5. Загружаем `reviews`
 
-### 5.1. Создадим таблицу reviews
-
-```sql
-drop table if exists stg.reviews;
-
-create table if not exists stg.reviews (
-  review_id               varchar not null,
-  order_id                varchar,
-  review_score            int,
-  review_comment_title    varchar,
-  review_comment_message  varchar,
-  review_creation_date    timestamp,
-  review_answer_timestamp timestamp,
-  ingest_date             date not null,
-  primary key (review_id, ingest_date)
-);
-```
-
-### 5.2. Создаём рабочий файл и наполняем его
+### 5.1. Создаём рабочий файл и наполняем его
 
 ```sql
 -- 1. Буфер
@@ -416,7 +398,9 @@ order by ingest_date;
 
 Результат:
 ```text
-
+ingest_date|count|
+-----------+-----+
+ 2025-12-03|99224|
 ```
 
 ### 6. Загружаем `product_category_name_translation`
@@ -532,14 +516,13 @@ where ingest_date = date '2025-12-03';
 tbl                              |rows_cnt|
 ---------------------------------+--------+
 order_items                      |  112650|
+reviews                          |   99224|
 orders                           |   99441|
 customers                        |   99441|
 order_payments                   |  103886|
 products                         |   32951|
 sellers                          |    3095|
 product_category_name_translation|      71|
-reviews                          |       0|
-...
 ```
 
 ## 8. Проверка идемпотентности
