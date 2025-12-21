@@ -78,3 +78,15 @@ create table if not exists stg.product_category_name_translation (
   ingest_date                   date not null,
   primary key (product_category_name, ingest_date)
 );
+
+create table if not exists stg.order_reviews (
+  review_id              varchar,
+  order_id               varchar,
+  review_score           int,
+  review_comment_title   varchar,
+  review_comment_message varchar,
+  review_creation_date   timestamp,
+  review_answer_timestamp timestamp,
+  ingest_date            date not null,
+  primary key (review_id, order_id, ingest_date)
+);
