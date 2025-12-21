@@ -10,6 +10,7 @@ volumes:
 services:
 
   spark-master:
+    user: "0:0"
     image: apache/spark:3.5.1
     container_name: spark-master
     command: ["/opt/spark/sbin/start-master.sh"]
@@ -20,17 +21,18 @@ services:
       - "18080:8080"     # Master UI → http://localhost:18080
     volumes:
       - ./datasets:/data
+      - ./workspace:/workspace
     restart: unless-stopped
     networks: [lab]
 
   spark-worker-1:
+    user: "0:0"
     build:
       context: .
       dockerfile: worker.Dockerfile
     image: local/spark-worker:3.5.1
     container_name: spark-worker-1
     depends_on: [spark-master]
-    # ВАЖНО: передаём мастера одной строкой, чтобы аргумент точно дошёл
     command: >
       bash -lc "/opt/spark/sbin/start-worker.sh
       --cores 2 --memory 1g --webui-port 8081 spark://spark-master:7077"
@@ -41,10 +43,12 @@ services:
       - "8081:8081"      # Worker-1 UI
     volumes:
       - ./datasets:/data
+      - ./workspace:/workspace
     restart: unless-stopped
     networks: [lab]
 
   spark-worker-2:
+    user: "0:0"
     build:
       context: .
       dockerfile: worker.Dockerfile
@@ -61,6 +65,7 @@ services:
       - "8082:8082"      # Worker-2 UI
     volumes:
       - ./datasets:/data
+      - ./workspace:/workspace
     restart: unless-stopped
     networks: [lab]
 
@@ -73,17 +78,23 @@ services:
     depends_on: [spark-master, spark-worker-1, spark-worker-2]
     user: "0:0"
     
-    # ВАЖНО: exec-форма + одна строка с опциями Jupyter
+
     command:
       - bash
       - -lc
-      - |
-        mkdir -p /home/jovyan/work /home/jovyan/work/.ipynb_checkpoints /data &&
-        chmod -R 777 /home/jovyan /data &&
-        jupyter lab --ServerApp.ip=0.0.0.0 --ServerApp.port=8888 --ServerApp.token= \
-                    --IdentityProvider.token= --ServerApp.allow_root=True \
-                    --ServerApp.open_browser=False --ServerApp.allow_remote_access=True \
-                    --ServerApp.disable_check_xsrf=True
+      - >
+        set -e;
+        mkdir -p /home/jovyan/work /home/jovyan/work/.ipynb_checkpoints /data /workspace;
+        chmod -R 777 /home/jovyan /data /workspace || true;
+        exec jupyter lab
+        --ServerApp.ip=0.0.0.0
+        --ServerApp.port=8888
+        --ServerApp.token=
+        --IdentityProvider.token=
+        --ServerApp.allow_root=True
+        --ServerApp.open_browser=False
+        --ServerApp.allow_remote_access=True
+        --ServerApp.disable_check_xsrf=True
     
     environment:
       - TZ=Europe/Moscow
@@ -96,10 +107,13 @@ services:
       - PGDATABASE=dwh
     
     volumes:
-      - ./notebooks:/home/jovyan/work
-      - ./datasets:/data
+      - ./notebooks:/home/jovyan/work        # ноутбуки
+      - ./datasets:/data                     # ТАК ЖЕ, как у мастер/воркеров
+      - ./datasets:/home/jovyan/work/datasets  # чтобы видеть те же папки в Jupyter
       - ./checks:/home/jovyan/work/checks
-    
+      - ./workspace:/workspace
+      - ./workspace:/home/jovyan/work/workspace
+
     ports:
       - "8890:8888"
     restart: unless-stopped
@@ -117,7 +131,7 @@ services:
       - "5433:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ./db/postgres/init:/docker-entrypoint-initdb.d:ro  # .sql для авто-создания схем/таблиц
+      - ./db/postgres/init:/docker-entrypoint-initdb.d:ro  # каталог .sql файлов для авто-создания схем/таблиц
       - ./data:/data:ro
       - ./db:/db:ro
     healthcheck:
