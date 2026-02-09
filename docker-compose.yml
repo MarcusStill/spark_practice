@@ -6,6 +6,8 @@ networks:
 
 volumes:
   pg_data:
+  minio_data:
+  airflow_logs:
 
 services:
 
@@ -16,12 +18,16 @@ services:
     command: ["/opt/spark/sbin/start-master.sh"]
     environment:
       - SPARK_NO_DAEMONIZE=1
+      - PYSPARK_PYTHON=/usr/bin/python3
     ports:
-      - "7077:7077"      # Spark RPC
-      - "18080:8080"     # Master UI → http://localhost:18080
+      - "7077:7077"
+      - "18080:8080"
     volumes:
-      - ./datasets:/data
+      - ./data:/data
+      - ./datasets:/datasets:ro
       - ./workspace:/workspace
+      - ./jars:/jars:ro
+
     restart: unless-stopped
     networks: [lab]
 
@@ -30,7 +36,7 @@ services:
     build:
       context: .
       dockerfile: worker.Dockerfile
-    image: local/spark-worker:3.5.1
+    image: local/spark-node:3.5.1
     container_name: spark-worker-1
     depends_on: [spark-master]
     command: >
@@ -40,10 +46,13 @@ services:
       - SPARK_NO_DAEMONIZE=1
       - PYSPARK_PYTHON=/usr/bin/python3
     ports:
-      - "8081:8081"      # Worker-1 UI
+      - "8081:8081"
     volumes:
-      - ./datasets:/data
+      - ./data:/data
+      - ./datasets:/datasets:ro
       - ./workspace:/workspace
+      - ./jars:/jars:ro
+
     restart: unless-stopped
     networks: [lab]
 
@@ -52,7 +61,7 @@ services:
     build:
       context: .
       dockerfile: worker.Dockerfile
-    image: local/spark-worker:3.5.1
+    image: local/spark-node:3.5.1
     container_name: spark-worker-2
     depends_on: [spark-master]
     command: >
@@ -62,10 +71,12 @@ services:
       - SPARK_NO_DAEMONIZE=1
       - PYSPARK_PYTHON=/usr/bin/python3
     ports:
-      - "8082:8082"      # Worker-2 UI
+      - "8082:8082"
     volumes:
-      - ./datasets:/data
+      - ./data:/data
+      - ./datasets:/datasets:ro
       - ./workspace:/workspace
+      - ./jars:/jars:ro
     restart: unless-stopped
     networks: [lab]
 
@@ -73,12 +84,18 @@ services:
     build:
       context: .
       dockerfile: jupyter.Dockerfile
+      args:
+        NB_UID: ${UID:-1000}
+        NB_GID: ${GID:-1000}
     image: local/jupyter-pyspark:3.5
     container_name: jupyter
-    depends_on: [spark-master, spark-worker-1, spark-worker-2]
+    depends_on:
+      - spark-master
+      - spark-worker-1
+      - spark-worker-2
+      - postgres
+      - minio-init
     user: "0:0"
-    
-
     command:
       - bash
       - -lc
@@ -89,35 +106,38 @@ services:
         exec jupyter lab
         --ServerApp.ip=0.0.0.0
         --ServerApp.port=8888
-        --ServerApp.token=
         --IdentityProvider.token=
         --ServerApp.allow_root=True
         --ServerApp.open_browser=False
         --ServerApp.allow_remote_access=True
         --ServerApp.disable_check_xsrf=True
-    
     environment:
       - TZ=Europe/Moscow
-      - PYSPARK_PYTHON=python3
-      - PYSPARK_DRIVER_PYTHON=python3
       - PGHOST=postgres
-      - PGPORT=5433
+      - PGPORT=5432
       - PGUSER=app
       - PGPASSWORD=app
       - PGDATABASE=dwh
-    
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=airflow
+      - MINIO_SECRET_KEY=airflow123
+      - SPARK_MASTER=spark://spark-master:7077
+      - PYSPARK_SUBMIT_ARGS=--jars /jars/postgresql-42.7.4.jar,/jars/hadoop-aws-3.3.4.jar,/jars/aws-java-sdk-bundle-1.12.262.jar pyspark-shell
     volumes:
-      - ./notebooks:/home/jovyan/work        # ноутбуки
-      - ./datasets:/data                     # ТАК ЖЕ, как у мастер/воркеров
-      - ./datasets:/home/jovyan/work/datasets  # чтобы видеть те же папки в Jupyter
+      - ./notebooks:/home/jovyan/work
+      - ./data:/data
+      - ./datasets:/datasets:ro
+      - ./data:/home/jovyan/work/data
+      - ./datasets:/home/jovyan/work/datasets:ro
       - ./checks:/home/jovyan/work/checks
       - ./workspace:/workspace
       - ./workspace:/home/jovyan/work/workspace
+      - ./jars:/jars:ro
 
     ports:
       - "8890:8888"
     restart: unless-stopped
-    networks: [lab]
+    networks: [ lab ]
 
   postgres:
     image: postgres:15
@@ -131,15 +151,179 @@ services:
       - "5433:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ./db/postgres/init:/docker-entrypoint-initdb.d:ro  # каталог .sql файлов для авто-создания схем/таблиц
+      - ./db/postgres/init:/docker-entrypoint-initdb.d:ro
       - ./data:/data:ro
+      - ./datasets:/datasets:ro
       - ./db:/db:ro
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U app -d dwh" ]
       interval: 5s
       timeout: 3s
-      retries: 10
+      retries: 30
+      start_period: 20s
     restart: unless-stopped
     networks: [ lab ]
 
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    environment:
+      MINIO_ROOT_USER: airflow
+      MINIO_ROOT_PASSWORD: airflow123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    networks: [lab]
 
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    depends_on: [minio]
+    volumes:
+      - ./data/parquet:/seed/parquet:ro
+    entrypoint: >
+      /bin/sh -lc "
+      until mc alias set local http://minio:9000 airflow airflow123 >/dev/null 2>&1; do
+        echo 'waiting for minio...'; sleep 2;
+      done;
+      mc mb -p local/raw || true;
+      mc mb -p local/stg || true;
+      mc mb -p local/core || true;
+      mc mb -p local/sources || true;
+      mc mb -p local/marts || true;
+      
+      echo 'seeding parquet data to MinIO...';
+      mc mirror --overwrite /seed/parquet local/sources/olist/parquet;
+      
+      echo 'minio buckets ready';
+      "
+    restart: "no"
+    networks: [lab]
+
+  airflow-init:
+    build:
+      context: .
+      dockerfile: airflow.Dockerfile
+    image: local/airflow:2.9.3-lab
+    container_name: airflow-init
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - TZ=Europe/Moscow
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow_meta
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_WEBSERVER_SECRET_KEY}
+      - AIRFLOW__CORE__AUTH_MANAGER=airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./plugins:/opt/airflow/plugins
+      - airflow_logs:/opt/airflow/logs
+      - ./data:/data:ro
+      - ./datasets:/datasets:ro
+      - ./workspace:/workspace
+    command:
+      - bash
+      - -lc
+      - |
+        set -euo pipefail
+        
+        echo "== wait postgres =="
+        until pg_isready -h postgres -U app -d postgres >/dev/null 2>&1; do
+          sleep 1
+        done
+        
+        echo "== ensure airflow role =="
+        if ! psql "postgresql://app:app@postgres:5432/postgres" -tAc "SELECT 1 FROM pg_roles WHERE rolname='airflow'" | grep -q 1; then
+          psql "postgresql://app:app@postgres:5432/postgres" -v ON_ERROR_STOP=1 -c "CREATE ROLE airflow LOGIN PASSWORD 'airflow';"
+        fi
+        
+        echo "== ensure airflow_meta db =="
+        if ! psql "postgresql://app:app@postgres:5432/postgres" -tAc "SELECT 1 FROM pg_database WHERE datname='airflow_meta'" | grep -q 1; then
+          psql "postgresql://app:app@postgres:5432/postgres" -v ON_ERROR_STOP=1 -c "CREATE DATABASE airflow_meta OWNER airflow;"
+        fi
+        
+        echo "== airflow db init =="
+        airflow db init
+        
+        echo "== ensure admin user =="
+        airflow users create \
+          --username admin \
+          --password admin \
+          --firstname Admin \
+          --lastname Admin \
+          --role Admin \
+          --email admin@example.com || true
+        
+        echo "airflow-init OK"
+    restart: "no"
+    networks: [ lab ]
+
+  airflow-webserver:
+    image: local/airflow:2.9.3-lab
+    container_name: airflow-webserver
+#    depends_on:
+#      airflow-init:
+#        condition: service_completed_successfully
+    environment:
+      - TZ=Europe/Moscow
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://app:app@postgres:5432/airflow_meta
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=True
+      - AIRFLOW__CORE__DEFAULT_TIMEZONE=Europe/Moscow
+      - AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE=Europe/Moscow
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_WEBSERVER_SECRET_KEY}
+      - AIRFLOW__CORE__AUTH_MANAGER=airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=airflow
+      - MINIO_SECRET_KEY=airflow123
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./plugins:/opt/airflow/plugins
+      - airflow_logs:/opt/airflow/logs
+      - ./data:/data:ro
+      - ./datasets:/datasets:ro
+      - ./workspace:/workspace
+
+    ports:
+      - "8085:8080"
+    command: webserver
+    restart: unless-stopped
+    networks: [lab]
+
+  airflow-scheduler:
+    image: local/airflow:2.9.3-lab
+    container_name: airflow-scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      - TZ=Europe/Moscow
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow_meta
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__DEFAULT_TIMEZONE=Europe/Moscow
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_WEBSERVER_SECRET_KEY}
+      - AIRFLOW__CORE__AUTH_MANAGER=airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=airflow
+      - MINIO_SECRET_KEY=airflow123
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./plugins:/opt/airflow/plugins
+      - airflow_logs:/opt/airflow/logs
+      - ./data:/data:ro
+      - ./datasets:/datasets:ro
+      - ./workspace:/workspace
+    command: scheduler
+    restart: unless-stopped
+    networks: [lab]
