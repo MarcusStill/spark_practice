@@ -1,6 +1,6 @@
 # spark_practice
 
-Мини-стенд DE на одном ноутбуке: **Docker + Postgres + Spark + Jupyter**.
+Мини-стенд DE: **Docker + Postgres + Spark + Jupyter + MinIO + Airflow**.
 
 Задача — пройти путь от сырых CSV до слоя STG, а дальше — к core и витринам.
 
@@ -8,17 +8,19 @@
 
 ## Сервисы
 
-- JupyterLab — http://localhost:8890
-- Spark Master UI — http://localhost:18080
-- Spark Workers UI — http://localhost:8081, http://localhost:8082
+- JupyterLab: http://localhost:8890
+- Spark Master UI: http://localhost:18080
+- Spark Workers UI: http://localhost:8081, http://localhost:8082
+- Airflow UI: http://localhost:8085
+- MinIO Console: http://localhost:9001
+- MinIO API (S3): http://localhost:9000
 
 Postgres (для DBeaver и psql):
-
-- host: localhost
-- port: 5433  (внутри Docker — postgres:5432)
+- host: 127.0.0.1
+- port: 5433 (на хосте) -> 5432 (в контейнере)
 - db: dwh
 - user: app
-- password: см. .env / docker-compose.yml
+- password: см. `.env`
 
 ---
 
@@ -27,30 +29,160 @@ Postgres (для DBeaver и psql):
 ```bash
 git clone url-репозитория spark_01
 cd spark_01
-
-# поднять весь стек
-docker compose up -d
-# или только postgres
-# docker compose up -d postgres
 ```
 
 Проверка:
+```bash
+ls -la docker-compose.yml
+```
 
+
+### 1) Создайте `.env` (один раз)
+
+Linux/Mac/Git Bash:
+```bash
+cp .env_template .env
+```
+
+Windows PowerShell:
+```powershell
+Copy-Item .env_template .env
+```
+
+Сгенерируйте и вставьте в `.env`:
+
+Fernet key (для Airflow):
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Webserver secret key:
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+
+### 2) Скачайте JAR’ы (рекомендую сделать сразу)
+
+Эти JAR’ы нужны:
+- для работы Spark с MinIO (`s3a://...`)
+- для чтения из Postgres через JDBC
+
+Мы не храним их в репозитории, поэтому скачиваем локально в `./jars`.
+
+Должно получиться так:
+- `jars/hadoop-aws-3.3.4.jar`
+- `jars/aws-java-sdk-bundle-1.12.262.jar`
+- `jars/postgresql-42.7.4.jar`
+
+Linux / Mac:
+```bash
+mkdir -p jars
+
+curl -L -o jars/hadoop-aws-3.3.4.jar   https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.4/hadoop-aws-3.3.4.jar
+curl -L -o jars/aws-java-sdk-bundle-1.12.262.jar   https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.262/aws-java-sdk-bundle-1.12.262.jar
+curl -L -o jars/postgresql-42.7.4.jar https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.4/postgresql-42.7.4.jar
+
+ls -la jars
+```
+
+Windows (PowerShell):
+```powershell
+New-Item -ItemType Directory -Force -Path jars | Out-Null
+
+Invoke-WebRequest -Uri "https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.4/hadoop-aws-3.3.4.jar" `
+  -OutFile "jars\hadoop-aws-3.3.4.jar"
+
+Invoke-WebRequest -Uri "https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.262/aws-java-sdk-bundle-1.12.262.jar" `
+  -OutFile "jars\aws-java-sdk-bundle-1.12.262.jar"
+
+Invoke-WebRequest -Uri "https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.4/postgresql-42.7.4.jar" `
+  -OutFile "jars\postgresql-42.7.4.jar"
+
+Get-ChildItem jars
+```
+
+Важно:
+- JAR’ы подключаются как volume (`./jars:/jars`). Пересборка образов не нужна.
+- Если вы скачали JAR’ы, когда контейнеры уже запущены, обычно хватает рестарта:
+
+```bash
+docker compose restart jupyter spark-master spark-worker-1 spark-worker-2
+```
+
+Проверка, что JAR’ы видны внутри контейнеров:
+```bash
+docker compose exec jupyter ls -la /jars
+docker compose exec spark-master ls -la /jars
+```
+
+Windows + Git Bash: если видите ошибку вида `C:/Program Files/Git/jars`, это MSYS path-conversion.
+Либо используйте PowerShell, либо так:
+```bash
+MSYS_NO_PATHCONV=1 docker compose exec jupyter ls -la /jars
+MSYS_NO_PATHCONV=1 docker compose exec spark-master ls -la /jars
+```
+
+### 3) Поднимите стек
+
+Первый раз (или после изменения Dockerfile/compose):
+```bash
+docker compose up -d --build
+```
+
+Обычно:
+```bash
+docker compose up -d
+```
+
+Проверка:
 ```bash
 docker compose ps
 ```
 
-Веб-интерфейс:
+### 4) Откройте UI
 
 - Jupyter: http://localhost:8890
 - Spark Master: http://localhost:18080
+- Airflow: http://localhost:8085
+- MinIO Console: http://localhost:9001
+
+### 5) Быстрые smoke-checks
+
+Postgres:
+```bash
+docker compose exec postgres psql -U app -d dwh -c "select 1 as ok;"
+```
+
+Если подключаетесь из DBeaver, используйте:
+- Host: 127.0.0.1
+- Port: 5433
+- Database: dwh
+- User: app
+- Password: из `.env`
+
+Jupyter:
+- открывается `http://localhost:8890`
+- в ноутбуке можно выполнить:
+
+```python
+import os, sys, glob
+print("python:", sys.executable)
+print("cwd:", os.getcwd())
+print("/jars exists:", os.path.exists("/jars"))
+print("/jars glob:", glob.glob("/jars/*.jar"))
+```
+
+Ожидаемо: `/jars exists: True` и список jar.
 
 ## Структура проекта
 
-- `data/raw/` — сырые данные с разбивкой по `ingest_date=YYYY-MM-DD`
-- `db/postgres/init/` — DDL, которые запускаются при первом старте БД
-- `db/templates/` — шаблонные SQL-файлы (**не менять**)
-- `db/work/` — рабочие SQL-скрипты
-- `files/` — исходные csv Olist
-- `modules/` — уроки и модули практикума
-- `scripts/put_to_raw.py` — скрипт для раскладывания CSV в RAW
+- `data/raw/` - сырые данные по `ingest_date=YYYY-MM-DD`
+- `data/csv/` - исходные CSV
+- `data/parquet/` - parquet (для Spark/MinIO)
+- `db/templates/` - шаблоны SQL
+- `db/work/` - рабочие SQL
+- `modules/` - уроки
+- `jars/` - JAR’ы для Spark (S3 + JDBC)
+- `dags/` - Airflow DAG’и
+- `troubleshooting.md` - диагностика проблем
