@@ -1,4 +1,4 @@
-# Урок 2. Загрузка `orders` в STG через replace-by-date
+# Урок 1.2. Загрузка `orders` в STG через replace-by-date
 
 ## Цель урока
 
@@ -26,7 +26,7 @@
 ```bash
 mkdir -p db/work
 
-cp db/templates/m1_orders_load_template.sql db/work/m1_orders_load.sql
+cp db/templates_/m1_orders_load_template.sql db/work/m1_orders_load.sql
 ```
 
 ### 2. Наполняем его

@@ -1,5 +1,5 @@
 create schema if not exists core;
-
+/*
 create table if not exists core.dim_customers (
   customer_id           varchar primary key,
   customer_unique_id    varchar,
@@ -26,3 +26,4 @@ create table if not exists core.fact_orders (
   main_payment_type     varchar,
   max_installments      int
 );
+*/

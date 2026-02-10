@@ -1,4 +1,4 @@
-# Урок 4. Загрузка остальных таблиц и проверка идемпотентности
+# Урок 1.4. Загрузка остальных таблиц и проверка идемпотентности
 
 ## Цель урока
 
@@ -15,7 +15,7 @@
 ```bash
 mkdir -p db/work
 
-cp db/templates/m1_customers_load_template.sql    db/work/m1_customers_load.sql
+cp db/templates_/m1_customers_load_template.sql    db/work/m1_customers_load.sql
 ```
 
 ### 1.2. Дописываем загрузку `customers`

@@ -177,12 +177,44 @@ print("/jars glob:", glob.glob("/jars/*.jar"))
 
 ## Структура проекта
 
-- `data/raw/` - сырые данные по `ingest_date=YYYY-MM-DD`
-- `data/csv/` - исходные CSV
-- `data/parquet/` - parquet (для Spark/MinIO)
-- `db/templates/` - шаблоны SQL
-- `db/work/` - рабочие SQL
-- `modules/` - уроки
-- `jars/` - JAR’ы для Spark (S3 + JDBC)
-- `dags/` - Airflow DAG’и
-- `troubleshooting.md` - диагностика проблем
+```
+spark_01/                 # корень проекта
+  dags/                   # Airflow DAG’и
+  data/
+    csv/                  # исходные CSV
+    parquet/              # parquet (для Spark/MinIO)
+    raw/                  # сырые данные (Olist, другие источники)
+    ...
+  db/
+    demo/
+    postgres/
+      init/
+        001_schemas.sql   # схемы и базовые объекты
+        002_stg_ddl.sql   # таблицы STG
+        003_core_ddl.sql  # таблицы CORE
+    solutions/
+    templates/            # шаблоны SQL
+    tmp/
+    work/                 # рабочие sql-скрипты
+  docker/
+  files/
+  jars/                   # JAR’ы для Spark (s3a и JDBC)
+  modules/
+    module01_ingest/      # уроки модуля 1 (RAW → STG)
+    module02_core/        # уроки модуля 2 (CORE)
+    ...
+  notebooks/
+    m1_raw_and_jdbc_template.ipynb   # шаблон ноутбука
+    ...
+  scripts/
+    put_to_raw.py         # скрипт для раскладки CSV в RAW
+    ...
+  spark/
+  
+  docker-compose.yml      # описание docker-стенда
+  jupyter.Dockerfile
+  README.md               # общее описание проекта
+  requirements.txt
+  troubleshooting.md      # диагностика проблем
+  worker.Dockerfile
+```

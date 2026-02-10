@@ -1,4 +1,4 @@
-# Урок 3. `order_items` и проверки связности
+# Урок 1.3. `order_items` и проверки связности
 
 ## Цель урока
 
@@ -27,7 +27,7 @@
 ```bash
 mkdir -p db/work
 
-cp db/templates/m1_order_items_load_template.sql    db/work/m1_order_items_load.sql
+cp db/templates_/m1_order_items_load_template.sql    db/work/m1_order_items_load.sql
 ```
 
 ## 3. Дописываем загрузку `order_items`
