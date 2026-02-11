@@ -268,13 +268,13 @@ services:
   airflow-webserver:
     image: local/airflow:2.9.3-lab
     container_name: airflow-webserver
-#    depends_on:
-#      airflow-init:
-#        condition: service_completed_successfully
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
     environment:
       - TZ=Europe/Moscow
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://app:app@postgres:5432/airflow_meta
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow_meta
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
       - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=True
       - AIRFLOW__CORE__DEFAULT_TIMEZONE=Europe/Moscow
