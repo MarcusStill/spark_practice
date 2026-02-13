@@ -186,7 +186,7 @@ spark_01/                 # корень проекта
     raw/                  # сырые данные (Olist, другие источники)
     ...
   db/
-    demo/
+    demo/                 # скрипт с демо-таблицей для теста SCD2
     postgres/
       init/
         001_schemas.sql   # схемы и базовые объекты
@@ -199,6 +199,7 @@ spark_01/                 # корень проекта
   docker/
   files/
   jars/                   # JAR’ы для Spark (s3a и JDBC)
+  md/                     # подробные разъяснения к отдельным проблемам/разделам
   modules/
     module01_ingest/      # уроки модуля 1 (RAW → STG)
     module02_core/        # уроки модуля 2 (CORE)

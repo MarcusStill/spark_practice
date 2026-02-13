@@ -252,7 +252,7 @@
 
 ## 6. ERD
 
-![img.png](img/img.png)
+![img.png](../img/img.png)
 
 
 ## 7. Что дальше

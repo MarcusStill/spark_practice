@@ -98,9 +98,10 @@ docker compose exec spark-master ls -la /jars
 
 ```python
 import os, sys, glob
+
 print("python:", sys.executable)
 print("cwd:", os.getcwd())
-print("/jars exists:", os.path.exists("/jars"))
+print("/jars exists:", os.path.exists("../jars"))
 print("/jars glob:", glob.glob("/jars/*.jar"))
 ```
 
