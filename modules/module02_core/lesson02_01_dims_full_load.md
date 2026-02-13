@@ -182,7 +182,7 @@ total_rows|distinct_products|
 ### 3.2. Создаем таблицу:
 
 ```sql
-- измерение товаров: SCD1
+-- измерение товаров: SCD1
 create table if not exists core.dim_seller (
     seller_sk                  bigserial primary key,  -- surrogate key в CORE
 

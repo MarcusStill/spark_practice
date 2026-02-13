@@ -62,3 +62,50 @@ select
 from stg.products p
 join max_ingest m
   on p.ingest_date = m.max_ingest_date;
+
+-- измерение товаров: SCD1
+create table if not exists core.dim_seller (
+    seller_sk                  bigserial primary key,  -- surrogate key в CORE
+
+    -- бизнес-ключ и атрибуты товара (перенесены из stg.products)
+    seller_id                   varchar not null,
+    seller_zip_code_prefix      varchar,
+    seller_city                 varchar,
+    seller_state                varchar,
+
+    -- технические поля CORE
+    src_ingest_date             date,           -- откуда взяли (ingest в STG)
+    load_dttm                   timestamptz default now()  -- когда загрузили в CORE (дата-время с часовым поясом)
+
+);
+
+-- уникальность по бизнес-ключу (одна строка на seller_id в SCD1)
+create unique index if not exists ux_dim_seller_seller_id
+    on core.dim_seller(seller_id);
+
+-- Full-load для core.dim_seller из stg.sellers (последний ingest_date)
+
+truncate table core.dim_seller restart identity; -- restart identity сбрасывает счётчик product_sk в 1.
+
+with max_ingest as (
+    select max(ingest_date) as max_ingest_date
+    from stg.sellers
+)
+insert into core.dim_seller (
+    seller_id                       ,
+    seller_zip_code_prefix          ,
+    seller_city                     ,
+    seller_state                    ,
+    src_ingest_date                 ,
+    load_dttm
+)
+select
+    p.seller_id                     ,
+    p.seller_zip_code_prefix        ,
+    p.seller_city                   ,
+    p.seller_state                  ,
+    p.ingest_date as src_ingest_date,
+    now()                as load_dttm
+from stg.sellers p
+join max_ingest m
+  on p.ingest_date = m.max_ingest_date;
