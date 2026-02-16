@@ -1,12 +1,5 @@
 # Урок 2.1. Первые измерения CORE и полный загрузочный прогон (SCD1)
 
-В этом уроке мы создадим в Postgres первые измерения в схеме `core` и один раз полностью загрузим их из `stg.*` по последнему `ingest_date`.
-
-* Разберем на примере `core.dim_product`.
-* По аналогии реализуешь `core.dim_seller`.
-
-
-
 ## Цели урока
 
 - создаём схему `core` в Postgres;
@@ -14,8 +7,6 @@
 - пишем full-load для `dim_product` из `stg.products` (последний `ingest_date`);
 - проектируем и загружаем `core.dim_seller` из `stg.sellers`;
 - делаем проверку counts-запросами и join-ами.
-
-
 
 ### 1. Пару слов о SCD:
 
@@ -50,11 +41,10 @@
 3. Добавляем surrogate key `product_sk`.
 4. Добавляем техническое поле `load_dttm` (дата и время загрузки строки в CORE).
 
-
 ### 2.2. Создаём рабочий файл
 
 ```text
-db/work/m2_dims_full.sql
+db/work/module02/m2_dims_full.sql
 ```
 
 ### 2.3. Создаем схему и таблицу:
@@ -89,7 +79,7 @@ create unique index if not exists ux_dim_product_product_id
     on core.dim_product(product_id);
 ```
 
-### 2.4. Наполняем core.dim_product
+### 2.4. Наполнием core.dim_product
 
 ```sql
 -- Full-load для core.dim_product из stg.products (последний ingest_date)
