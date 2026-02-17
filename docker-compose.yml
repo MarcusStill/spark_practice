@@ -16,13 +16,18 @@ services:
     image: apache/spark:3.5.1
     container_name: spark-master
     command: ["/opt/spark/sbin/start-master.sh"]
+    env_file:
+      - .env
     environment:
       - SPARK_NO_DAEMONIZE=1
       - PYSPARK_PYTHON=/usr/bin/python3
+      - PATH=/opt/spark/bin:/opt/spark/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
     ports:
       - "7077:7077"
       - "18080:8080"
     volumes:
+      - ./spark/conf:/opt/spark/conf:ro
       - ./data:/data
       - ./datasets:/datasets:ro
       - ./workspace:/workspace
@@ -41,13 +46,17 @@ services:
     depends_on: [spark-master]
     command: >
       bash -lc "/opt/spark/sbin/start-worker.sh
-      --cores 2 --memory 1g --webui-port 8081 spark://spark-master:7077"
+      --cores 2 --memory 2g --webui-port 8081 spark://spark-master:7077"
+    env_file:
+      - .env
     environment:
       - SPARK_NO_DAEMONIZE=1
       - PYSPARK_PYTHON=/usr/bin/python3
+      - PATH=/opt/spark/bin:/opt/spark/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     ports:
       - "8081:8081"
     volumes:
+      - ./spark/conf:/opt/spark/conf:ro
       - ./data:/data
       - ./datasets:/datasets:ro
       - ./workspace:/workspace
@@ -66,13 +75,17 @@ services:
     depends_on: [spark-master]
     command: >
       bash -lc "/opt/spark/sbin/start-worker.sh
-      --cores 2 --memory 1g --webui-port 8082 spark://spark-master:7077"
+      --cores 2 --memory 2g --webui-port 8082 spark://spark-master:7077"
+    env_file:
+      - .env
     environment:
       - SPARK_NO_DAEMONIZE=1
       - PYSPARK_PYTHON=/usr/bin/python3
+      - PATH=/opt/spark/bin:/opt/spark/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     ports:
       - "8082:8082"
     volumes:
+      - ./spark/conf:/opt/spark/conf:ro
       - ./data:/data
       - ./datasets:/datasets:ro
       - ./workspace:/workspace
@@ -111,16 +124,10 @@ services:
         --ServerApp.open_browser=False
         --ServerApp.allow_remote_access=True
         --ServerApp.disable_check_xsrf=True
+    env_file:
+      - .env
     environment:
       - TZ=Europe/Moscow
-      - PGHOST=postgres
-      - PGPORT=5432
-      - PGUSER=app
-      - PGPASSWORD=app
-      - PGDATABASE=dwh
-      - MINIO_ENDPOINT=http://minio:9000
-      - MINIO_ACCESS_KEY=airflow
-      - MINIO_SECRET_KEY=airflow123
       - SPARK_MASTER=spark://spark-master:7077
       - PYSPARK_SUBMIT_ARGS=--jars /jars/postgresql-42.7.4.jar,/jars/hadoop-aws-3.3.4.jar,/jars/aws-java-sdk-bundle-1.12.262.jar pyspark-shell
     volumes:
@@ -195,6 +202,7 @@ services:
       mc mb -p local/core || true;
       mc mb -p local/sources || true;
       mc mb -p local/marts || true;
+      mc mb -p local/warehouse || true;
       
       echo 'seeding parquet data to MinIO...';
       mc mirror --overwrite /seed/parquet local/sources/olist/parquet;
