@@ -167,6 +167,9 @@ ingest_date|rows_cnt|
 - `src_ingest_date` — из какого `ingest_date` из STG мы получили эту версию;
 - `load_dttm`       — когда строка была загружена в CORE.
 
+Схематично:
+![stg_to_dim_customers.png](../../img/stg_to_dim_customers.png)
+
 > В бою обычно `effective_from` привязывают к **бизнес-событию** (`address_changed_at`), а `ingest_date` используют как тех.дату загрузки.  
 > В учебном стенде Olist мы честно признаём: event time нет, поэтому берём `ingest_date`.
 

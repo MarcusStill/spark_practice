@@ -31,6 +31,7 @@
 - `product_width_cm`
 - `ingest_date`
 
+![stg_to_dim_products.png](../../img/stg_to_dim_products.png)
 
 Первые 9 полей — это **описательные атрибуты товара**. `Ingest_date` — дата зарузки товара в STG.
 

@@ -65,6 +65,8 @@
   - `src_ingest_date` — из какого `ingest_date` STG мы взяли строку;
   - `load_dttm`       — когда строка попала в CORE.
 
+![raw_to_stg_to_dim_order_items.png](../../img/raw_to_stg_to_dim_order_items.png)
+
 ## 2. Проектируем `core.fct_order_items`
 
 ### 2.1. DDL факта
