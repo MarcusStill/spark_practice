@@ -252,7 +252,7 @@
 
 ## 6. ERD
 
-![img.png](../img/img.png)
+![olist_dataset.png](../img/olist_dataset.png)
 
 
 ## 7. Что дальше
