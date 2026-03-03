@@ -12,7 +12,7 @@ create table stg._order_items_load (
 );
 
 -- 2. Загрузка CSV в буфер
-\copy stg._order_items_load(
+copy stg._order_items_load(
   order_id,
   order_item_id,
   product_id,

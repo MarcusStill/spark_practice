@@ -719,7 +719,7 @@ customer_id                     |customer_unique_id              |customer_zip_c
 ```sql
 UPDATE stg.customers 
 SET ingest_date='2025-12-25', customer_city='new_franca', customer_state='SPN'
-WHERE customer_id='06b8999e2fba1a1fbc88172c00ba8bc7' AND ingest_date='2025-12-25';
+WHERE customer_id='06b8999e2fba1a1fbc88172c00ba8bc7' AND ingest_date='2025-12-20';
 ```
 
 #### 4.3.4. Проверяем работу инкрементального скрипта

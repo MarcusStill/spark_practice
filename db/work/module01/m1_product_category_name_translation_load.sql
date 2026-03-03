@@ -7,7 +7,7 @@ create table stg._product_category_name_translation_load (
 );
 
 -- 2. Загрузка CSV в буфер
-OPY stg._product_category_name_translation_load (
+COPY stg._product_category_name_translation_load (
   product_category_name,
   product_category_name_english
 )
