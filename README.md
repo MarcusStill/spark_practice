@@ -1,6 +1,21 @@
 # spark_practice
 
-Мини-стенд DE: **Docker + Postgres + Spark + Jupyter + MinIO + Airflow**.
+**Локальный DWH-стенд для сквозного ETL.**  
+Я развернул кластер из Spark (master + 2 workers), Postgres, MinIO (S3), JupyterLab и Airflow в Docker Compose. Строю пайплайн от сырых CSV-файлов до витрин данных.
+
+> 🚧 **Статус:** активная разработка.
+
+---
+
+## 🎯 Задумка
+
+| Этап | Решение | Инструменты |
+|------|---------|--------------|
+| **Инфраструктура** | Кластер: Spark (master + 2 workers) + Postgres + MinIO + Jupyter + Airflow | Docker Compose |
+| **RAW → STG** | Идемпотентная загрузка: разложение по `ingest_date=YYYY-MM-DD`, перезапись по дате | Spark, S3a, SQL |
+| **CORE слой** | Факты, измерения, event-даты, инкрементальные модели | Spark DataFrames |
+| **Марты (витрины)** | Денормализованные витрины под продуктовые вопросы | Spark, Parquet |
+| **Оркестрация** | DAG’и: расписания, зависимости, ретраи, сенсоры | Airflow |
 
 Задача — пройти путь от сырых CSV до слоя STG, а дальше — к core и витринам.
 
